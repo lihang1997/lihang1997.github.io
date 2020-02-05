@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html>
+  <head><meta name="generator" content="Hexo 3.8.0">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport">
+  <meta name="description" content="PHP-FPM启动过程">
+  <meta name="keyword" content="FPM,fastcgi">
+  
+    <link rel="shortcut icon" href="/css/images/logo.png">
+  
+  <title>
+    
+      PHP-FPM概述 | 村口的狗蛋
+    
+  </title>
+  <link href="//cdn.bootcss.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <link href="//cdn.bootcss.com/nprogress/0.2.0/nprogress.min.css" rel="stylesheet">
+  <link href="//cdn.bootcss.com/highlight.js/9.12.0/styles/tomorrow.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="/css/plugins/gitment.css">
+  <script src="//cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+  <script src="//cdn.bootcss.com/geopattern/1.2.3/js/geopattern.min.js"></script>
+  <script src="//cdn.bootcss.com/nprogress/0.2.0/nprogress.min.js"></script>
+  <script src="/js/qrious.js"></script>
+<script src="/js/gitment.js"></script>
+  
+  
+    <!-- MathJax support START -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [ ['$','$'], ["\\(","\\)"]  ],
+          processEscapes: true,
+          skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        }
+      });
+    </script>
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Queue(function() {
+        var all = MathJax.Hub.getAllJax(), i;
+        for (i=0; i < all.length; i += 1) {
+          all[i].SourceElement().parentNode.className += ' has-jax';
+        }
+      });
+    </script>
+    <script type="text/javascript" src="//cdn.bootcss.com/mathjax/2.7.1/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <!-- MathJax support END -->
+  
+
+
+</head>
+<div class="wechat-share">
+  <img src="/css/images/logo.png">
+</div>
+
+  <body>
+    <header class="header fixed-header">
+  <div class="header-container">
+    <a class="home-link" href="/">
+      <div class="logo"></div>
+      <span>村口的狗蛋</span>
+    </a>
+    <ul class="right-list">
+      
+        <li class="list-item">
+          
+            <a href="/" class="item-link">主页</a>
+          
+        </li>
+      
+        <li class="list-item">
+          
+            <a href="/tags/" class="item-link">标签</a>
+          
+        </li>
+      
+        <li class="list-item">
+          
+            <a href="/archives/" class="item-link">归档</a>
+          
+        </li>
+      
+        <li class="list-item">
+          
+            <a href="/about/" class="item-link">关于</a>
+          
+        </li>
+      
+    </ul>
+    <div class="menu">
+      <span class="icon-bar"></span>
+      <span class="icon-bar"></span>
+      <span class="icon-bar"></span>
+    </div>
+    <div class="menu-mask">
+      <ul class="menu-list">
+        
+          <li class="menu-item">
+            
+              <a href="/" class="menu-link">主页</a>
+            
+          </li>
+        
+          <li class="menu-item">
+            
+              <a href="/tags/" class="menu-link">标签</a>
+            
+          </li>
+        
+          <li class="menu-item">
+            
+              <a href="/archives/" class="menu-link">归档</a>
+            
+          </li>
+        
+          <li class="menu-item">
+            
+              <a href="/about/" class="menu-link">关于</a>
+            
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</header>
+
+    <div id="article-banner">
+  <h2>PHP-FPM概述</h2>
+  <p class="post-date">2018-12-18</p>
+  <div class="arrow-down">
+    <a href="javascript:;"></a>
+  </div>
+</div>
+<main class="app-body flex-box">
+  <!-- Article START -->
+  <article class="post-article">
+    <section class="markdown-content"><p>&emsp;&emsp;FPM是PHP FastCGI运行模式的进程管理器，为了解释清楚FPM相关原理，首先需要先解释FsatCGI相关内容。CGI是通用网关协议以Fork-and-execute的模式去工作，所以性能一般。而FastCGI是以进程池的模式去工作极大的降低了进程的开销，性能较好，同时也是现在WEB所使用的工作模式。PHP-CGI是PHP去实现的FastCGI协议接口的程序，PHP-FPM是PHP-CGI程序的管理器。</p>
+<p>&emsp;&emsp;FPM与Nginx的工作模式相同，均是采用Master-Worker的多进程模型。对于Web的请求流程来说，PHP层面可以理解是对请求的一个解释过程。PHP实现了FastCGI协议的解析，但是并没有具体实现网络处理，一般的处理模型：多进程、多线程，多进程模型通常是主进程只负责管理子进程，而基本的网络事件由各个子进程处理；另一种多线程模型与多进程类似，只是它是线程粒度，通常会由主线程监听、接收请求，然后交由子线程处理，Memcached就是这种模式，有的也是采用多进程那种模式：主线程只负责管理子线程不处理网络事件，各个子线程监听、接收、处理请求，Memcached使用UDP协议时采用的是这种模式。</p>
+<p>&emsp;&emsp;接下来讲述一下FPM的基本实现，概括来说，FPM的实现就是创建一个master进程，在master进程中创建并监听socket，然后fork出多个子进程，这些子进程各自accept请求，子进程的处理非常简单，它在启动后阻塞在accept上，有请求到达后开始读取请求数据，读取完成后开始处理然后再返回，在这期间是不会接收其它请求的，也就是说fpm的子进程同时只能响应一个请求，只有把这个请求处理完成后才会accept下一个请求，这一点与NGINX的事件驱动有很大的区别，NGINX的子进程通过epoll管理套接字，如果一个请求数据还未发送完成则会处理下一个请求，即一个进程会同时连接多个请求，它是非阻塞的模型，只处理活跃的套接字。</p>
+<p>&emsp;&emsp;FPM的master进程与worker进程之间不会直接进行通信，master通过共享内存获取worker进程的信息，比如worker进程当前状态、已处理请求数等，当master进程要杀掉一个worker进程时则通过发送信号的方式通知worker进程。</p>
+<p>&emsp;&emsp;FPM可以同时监听多个端口，每个端口对应一个worker pool，而每个pool下对应多个worker进程，类似于NGINX中server概念。</p>
+<p>&emsp;&emsp;实现上worker pool通过<code>fpm_worker_pool_s</code>这个结构表示，多个worker pool组成一个单链表：<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">fpm_worker_pool_s</span> &#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fpm_worker_pool_s</span> *<span class="title">next</span>;</span> <span class="comment">//指向下一个worker pool</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fpm_worker_pool_config_s</span> *<span class="title">config</span>;</span> <span class="comment">//conf配置:pm、max_children、start_servers...</span></span><br><span class="line">    <span class="keyword">int</span> listening_socket; <span class="comment">//监听的套接字</span></span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">    <span class="comment">//以下这个值用于master定时检查、记录worker数</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fpm_child_s</span> *<span class="title">children</span>;</span> <span class="comment">//当前pool的worker链表</span></span><br><span class="line">    <span class="keyword">int</span> running_children; <span class="comment">//当前pool的worker运行总数</span></span><br><span class="line">    <span class="keyword">int</span> idle_spawn_rate;</span><br><span class="line">    <span class="keyword">int</span> warn_max_children;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fpm_scoreboard_s</span> *<span class="title">scoreboard</span>;</span> <span class="comment">//记录worker的运行信息，比如空闲、忙碌worker数</span></span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>&emsp;&emsp;接下来看下fpm的启动流程，从<code>main()</code>函数开始：<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//sapi/fpm/fpm/fpm_main.c</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> *argv[])</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">//注册SAPI:将全局变量sapi_module设置为cgi_sapi_module</span></span><br><span class="line">    sapi_startup(&amp;cgi_sapi_module);</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">//执行php_module_starup()</span></span><br><span class="line">    <span class="keyword">if</span> (cgi_sapi_module.startup(&amp;cgi_sapi_module) == FAILURE) &#123;</span><br><span class="line">        <span class="keyword">return</span> FPM_EXIT_SOFTWARE;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">//初始化</span></span><br><span class="line">    <span class="keyword">if</span>(<span class="number">0</span> &gt; fpm_init(...))&#123;</span><br><span class="line">        ...</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    fpm_is_running = <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    fcgi_fd = fpm_run(&amp;max_requests);<span class="comment">//后面都是worker进程的操作，master进程不会走到下面</span></span><br><span class="line">    parent = <span class="number">0</span>;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p><code>fpm_init()</code>主要有以下几个关键操作：</p>
+<p><strong>(1)fpm_conf_init_main():</strong> </p>
+<p>解析php-fpm.conf配置文件，分配worker pool内存结构并保存到全局变量中：fpm_worker_all_pools，各worker pool配置解析到<code>fpm_worker_pool_s-&gt;config</code>中。</p>
+<p><strong>(2)fpm_scoreboard_init_main():</strong> 分配用于记录worker进程运行信息的共享内存，按照worker pool的最大worker进程数分配，每个worker pool分配一个<code>fpm_scoreboard_s</code>结构，pool下对应的每个worker进程分配一个<code>fpm_scoreboard_proc_s</code>结构。</p>
+<p><strong>(3)fpm_signals_init_main():</strong><br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">int</span> sp[<span class="number">2</span>];</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">fpm_signals_init_main</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">sigaction</span> <span class="title">act</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">//创建一个全双工管道</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="number">0</span> &gt; socketpair(AF_UNIX, SOCK_STREAM, <span class="number">0</span>, sp)) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//注册信号处理handler</span></span><br><span class="line">    act.sa_handler = sig_handler;</span><br><span class="line">    sigfillset(&amp;act.sa_mask);</span><br><span class="line">    <span class="keyword">if</span> (<span class="number">0</span> &gt; sigaction(SIGTERM,  &amp;act, <span class="number">0</span>) ||</span><br><span class="line">        <span class="number">0</span> &gt; sigaction(SIGINT,   &amp;act, <span class="number">0</span>) ||</span><br><span class="line">        <span class="number">0</span> &gt; sigaction(SIGUSR1,  &amp;act, <span class="number">0</span>) ||</span><br><span class="line">        <span class="number">0</span> &gt; sigaction(SIGUSR2,  &amp;act, <span class="number">0</span>) ||</span><br><span class="line">        <span class="number">0</span> &gt; sigaction(SIGCHLD,  &amp;act, <span class="number">0</span>) ||</span><br><span class="line">        <span class="number">0</span> &gt; sigaction(SIGQUIT,  &amp;act, <span class="number">0</span>)) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>&emsp;&emsp;这里会通过<code>socketpair()</code>创建一个管道，这个管道并不是用于master与worker进程通信的，它只在master进程中使用，具体用途在稍后介绍event事件处理时再作说明。另外设置master的信号处理handler，当master收到SIGTERM、SIGINT、SIGUSR1、SIGUSR2、SIGCHLD、SIGQUIT这些信号时将调用<code>sig_handler()</code>处理：<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">sig_handler</span><span class="params">(<span class="keyword">int</span> signo)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">static</span> <span class="keyword">const</span> <span class="keyword">char</span> sig_chars[NSIG + <span class="number">1</span>] = &#123;</span><br><span class="line">        [SIGTERM] = <span class="string">'T'</span>,</span><br><span class="line">        [SIGINT]  = <span class="string">'I'</span>,</span><br><span class="line">        [SIGUSR1] = <span class="string">'1'</span>,</span><br><span class="line">        [SIGUSR2] = <span class="string">'2'</span>,</span><br><span class="line">        [SIGQUIT] = <span class="string">'Q'</span>,</span><br><span class="line">        [SIGCHLD] = <span class="string">'C'</span></span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="keyword">char</span> s;</span><br><span class="line">    ...</span><br><span class="line">    s = sig_chars[signo];</span><br><span class="line">    <span class="comment">//将信号通知写入管道sp[1]端</span></span><br><span class="line">    write(sp[<span class="number">1</span>], &amp;s, <span class="keyword">sizeof</span>(s));</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p><strong>(4)fpm_sockets_init_main()</strong></p>
+<p>创建每个worker pool的socket套接字。</p>
+<p><strong>(5)fpm_event_init_main():</strong></p>
+<p>启动master的事件管理，fpm实现了一个事件管理器用于管理IO、定时事件，其中IO事件通过kqueue、epoll、poll、select等管理，定时事件就是定时器，一定时间后触发某个事件。</p>
+<p>在<code>fpm_init()</code>初始化完成后接下来就是最关键的<code>fpm_run()</code>操作了，此环节将fork子进程，启动进程管理器，另外master进程将不会再返回，只有各worker进程会返回，也就是说<code>fpm_run()</code>之后的操作均是worker进程的。<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">fpm_run</span><span class="params">(<span class="keyword">int</span> *max_requests)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fpm_worker_pool_s</span> *<span class="title">wp</span>;</span></span><br><span class="line">    <span class="keyword">for</span> (wp = fpm_worker_all_pools; wp; wp = wp-&gt;next) &#123;</span><br><span class="line">        <span class="comment">//调用fpm_children_make() fork子进程</span></span><br><span class="line">        is_parent = fpm_children_create_initial(wp);</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">if</span> (!is_parent) &#123;</span><br><span class="line">            <span class="keyword">goto</span> run_child;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//master进程将进入event循环，不再往下走</span></span><br><span class="line">    fpm_event_loop(<span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">run_child: <span class="comment">//只有worker进程会到这里</span></span><br><span class="line"></span><br><span class="line">    *max_requests = fpm_globals.max_requests;</span><br><span class="line">    <span class="keyword">return</span> fpm_globals.listening_socket; <span class="comment">//返回监听的套接字</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>&emsp;&emsp;在fork后worker进程返回了监听的套接字继续main()后面的处理，而master将永远阻塞在<code>fpm_event_loop()</code>，接下来分别介绍master、worker进程的后续操作。</p>
+<p>&emsp;&emsp;<code>fpm_run()</code>执行后将fork出worker进程，worker进程返回<code>main()</code>中继续向下执行，后面的流程就是worker进程不断accept请求，然后执行PHP脚本并返回。整体流程如下：</p>
+<ul>
+<li><strong>(1)等待请求：</strong> worker进程阻塞在fcgi_accept_request()等待请求；</li>
+<li><strong>(2)解析请求：</strong> fastcgi请求到达后被worker接收，然后开始接收并解析请求数据，直到request数据完全到达；</li>
+<li><strong>(3)请求初始化：</strong> 执行php_request_startup()，此阶段会调用每个扩展的：PHP_RINIT_FUNCTION()；</li>
+<li><strong>(4)编译、执行：</strong> 由php_execute_script()完成PHP脚本的编译、执行；</li>
+<li><strong>(5)关闭请求：</strong> 请求完成后执行php_request_shutdown()，此阶段会调用每个扩展的：PHP_RSHUTDOWN_FUNCTION()，然后进入步骤(1)等待下一个请求。</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">main</span><span class="params">(<span class="keyword">int</span> argc, <span class="keyword">char</span> *argv[])</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    ...</span><br><span class="line">    fcgi_fd = fpm_run(&amp;max_requests);</span><br><span class="line">    parent = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">//初始化fastcgi请求</span></span><br><span class="line">    request = fpm_init_request(fcgi_fd);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">//worker进程将阻塞在这，等待请求</span></span><br><span class="line">    <span class="keyword">while</span> (EXPECTED(fcgi_accept_request(request) &gt;= <span class="number">0</span>)) &#123;</span><br><span class="line">        SG(server_context) = (<span class="keyword">void</span> *) request;</span><br><span class="line">        init_request_info();</span><br><span class="line">        </span><br><span class="line">        <span class="comment">//请求开始</span></span><br><span class="line">        <span class="keyword">if</span> (UNEXPECTED(php_request_startup() == FAILURE)) &#123;</span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">        ...</span><br><span class="line"></span><br><span class="line">        fpm_request_executing();</span><br><span class="line">        <span class="comment">//编译、执行PHP脚本</span></span><br><span class="line">        php_execute_script(&amp;file_handle);</span><br><span class="line">        ...</span><br><span class="line">        <span class="comment">//请求结束</span></span><br><span class="line">        php_request_shutdown((<span class="keyword">void</span> *) <span class="number">0</span>);</span><br><span class="line">        ...</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">//worker进程退出</span></span><br><span class="line">    php_module_shutdown();</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>worker进程一次请求的处理被划分为5个阶段：</p>
+<ul>
+<li><strong>FPM_REQUEST_ACCEPTING:</strong> 等待请求阶段</li>
+<li><strong>FPM_REQUEST_READING_HEADERS:</strong> 读取fastcgi请求header阶段</li>
+<li><strong>FPM_REQUEST_INFO:</strong> 获取请求信息阶段，此阶段是将请求的method、query stirng、request uri等信息保存到各worker进程的fpm_scoreboard_proc_s结构中，此操作需要加锁，因为master进程也会操作此结构</li>
+<li><strong>FPM_REQUEST_EXECUTING:</strong> 执行请求阶段</li>
+<li><strong>FPM_REQUEST_END:</strong> 没有使用</li>
+<li><strong>FPM_REQUEST_FINISHED:</strong> 请求处理完成</li>
+</ul>
+<p>&emsp;&emsp;worker处理到各个阶段时将会把当前阶段更新到<code>fpm_scoreboard_proc_s-&gt;request_stage</code>，master进程正是通过这个标识判断worker进程是否空闲的。</p>
+<p>最后讲述一下master是如何管理worker进程的，首先介绍下三种不同的进程管理方式：</p>
+<ul>
+<li><strong>static:</strong> 这种方式比较简单，在启动时master按照<code>pm.max_children</code>配置fork出相应数量的worker进程，即worker进程数是固定不变的</li>
+<li><strong>dynamic:</strong> 动态进程管理，首先在fpm启动时按照<code>pm.start_servers</code>初始化一定数量的worker，运行期间如果master发现空闲worker数低于<code>pm.min_spare_servers</code>配置数(表示请求比较多，worker处理不过来了)则会fork worker进程，但总的worker数不能超过<code>pm.max_children</code>，如果master发现空闲worker数超过了<code>pm.max_spare_servers</code>(表示闲着的worker太多了)则会杀掉一些worker，避免占用过多资源，master通过这4个值来控制worker数</li>
+<li><strong>ondemand:</strong> 这种方式一般很少用，在启动时不分配worker进程，等到有请求了后再通知master进程fork worker进程，总的worker数不超过<code>pm.max_children</code>，处理完成后worker进程不会立即退出，当空闲时间超过<code>pm.process_idle_timeout</code>后再退出</li>
+</ul>
+<p>前面介绍到在<code>fpm_run()</code>master进程将进入<code>fpm_event_loop()</code>：<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">fpm_event_loop</span><span class="params">(<span class="keyword">int</span> err)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">//创建一个io read的监听事件，这里监听的就是在fpm_init()阶段中通过socketpair()创建管道sp[0]</span></span><br><span class="line">    <span class="comment">//当sp[0]可读时将回调fpm_got_signal()</span></span><br><span class="line">    fpm_event_set(&amp;signal_fd_event, fpm_signals_get_fd(), FPM_EV_READ, &amp;fpm_got_signal, <span class="literal">NULL</span>);</span><br><span class="line">    fpm_event_add(&amp;signal_fd_event, <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">//如果在php-fpm.conf配置了request_terminate_timeout则启动心跳检查</span></span><br><span class="line">    <span class="keyword">if</span> (fpm_globals.heartbeat &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        fpm_pctl_heartbeat(<span class="literal">NULL</span>, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//定时触发进程管理</span></span><br><span class="line">    fpm_pctl_perform_idle_server_maintenance_heartbeat(<span class="literal">NULL</span>, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">//进入事件循环，master进程将阻塞在此</span></span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">        ...</span><br><span class="line">        <span class="comment">//等待IO事件</span></span><br><span class="line">        ret = <span class="keyword">module</span>-&gt;wait(fpm_event_queue_fd, timeout);</span><br><span class="line">        ...</span><br><span class="line">        <span class="comment">//检查定时器事件</span></span><br><span class="line">        ...</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>这就是master整体的处理，其进程管理主要依赖注册的几个事件，接下来我们详细分析下这几个事件的功能。</p>
+<p><strong>(1)sp[1]管道可读事件：</strong> </p>
+<p>在<code>fpm_init()</code>阶段master曾创建了一个全双工的管道：sp，然后在这里创建了一个sp[0]可读的事件，当sp[0]可读时将交由<code>fpm_got_signal()</code>处理，向sp[1]写数据时sp[0]才会可读，那么什么时机会向sp[1]写数据呢？前面已经提到了：当master收到注册的那几种信号时会写入sp[1]端，这个时候将触发sp[0]可读事件。</p>
+<p>这个事件是master用于处理信号的，我们根据master注册的信号逐个看下不同用途：</p>
+<ul>
+<li><strong>SIGINT/SIGTERM/SIGQUIT:</strong> 退出fpm，在master收到退出信号后将向所有的worker进程发送退出信号，然后master退出</li>
+<li><strong>SIGUSR1:</strong> 重新加载日志文件，生产环境中通常会对日志进行切割，切割后会生成一个新的日志文件，如果fpm不重新加载将无法继续写入日志，这个时候就需要向master发送一个USR1的信号</li>
+<li><strong>SIGUSR2:</strong> 重启fpm，首先master也是会向所有的worker进程发送退出信号，然后master会调用execvp()重新启动fpm，最后旧的master退出</li>
+<li><strong>SIGCHLD:</strong> 这个信号是子进程退出时操作系统发送给父进程的，子进程退出时，内核将子进程置为僵尸状态，这个进程称为僵尸进程，它只保留最小的一些内核数据结构，以便父进程查询子进程的退出状态，只有当父进程调用wait或者waitpid函数查询子进程退出状态后子进程才告终止，fpm中当worker进程因为异常原因(比如coredump了)退出而非master主动杀掉时master将受到此信号，这个时候父进程将调用waitpid()查下子进程的退出，然后检查下是不是需要重新fork新的worker</li>
+</ul>
+<p>具体处理逻辑在<code>fpm_got_signal()</code>函数中，这里不再罗列。</p>
+<p><strong>(2)fpm_pctl_perform_idle_server_maintenance_heartbeat():</strong></p>
+<p>这是进程管理实现的主要事件，master启动了一个定时器，每隔1s触发一次，主要用于dynamic、ondemand模式下的worker管理，master会定时检查各worker pool的worker进程数，通过此定时器实现worker数量的控制，处理逻辑如下：<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">fpm_pctl_perform_idle_server_maintenance</span><span class="params">(struct timeval *now)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">for</span> (wp = fpm_worker_all_pools; wp; wp = wp-&gt;next) &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">fpm_child_s</span> *<span class="title">last_idle_child</span> = <span class="title">NULL</span>;</span> <span class="comment">//空闲时间最久的worker</span></span><br><span class="line">        <span class="keyword">int</span> idle = <span class="number">0</span>; <span class="comment">//空闲worker数</span></span><br><span class="line">        <span class="keyword">int</span> active = <span class="number">0</span>; <span class="comment">//忙碌worker数</span></span><br><span class="line">        </span><br><span class="line">        <span class="keyword">for</span> (child = wp-&gt;children; child; child = child-&gt;next) &#123;</span><br><span class="line">            <span class="comment">//根据worker进程的fpm_scoreboard_proc_s-&gt;request_stage判断</span></span><br><span class="line">            <span class="keyword">if</span> (fpm_request_is_idle(child)) &#123;</span><br><span class="line">                <span class="comment">//找空闲时间最久的worker</span></span><br><span class="line">                ...</span><br><span class="line">                idle++;</span><br><span class="line">            &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">                active++;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        ...</span><br><span class="line">        <span class="comment">//ondemand模式</span></span><br><span class="line">        <span class="keyword">if</span> (wp-&gt;config-&gt;pm == PM_STYLE_ONDEMAND) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!last_idle_child) <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">            fpm_request_last_activity(last_idle_child, &amp;last);</span><br><span class="line">            fpm_clock_get(&amp;now);</span><br><span class="line">            <span class="keyword">if</span> (last.tv_sec &lt; now.tv_sec - wp-&gt;config-&gt;pm_process_idle_timeout) &#123;</span><br><span class="line">                <span class="comment">//如果空闲时间最长的worker空闲时间超过了process_idle_timeout则杀掉该worker</span></span><br><span class="line">                last_idle_child-&gt;idle_kill = <span class="number">1</span>;</span><br><span class="line">                fpm_pctl_kill(last_idle_child-&gt;pid, FPM_PCTL_QUIT);</span><br><span class="line">            &#125; </span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//dynamic</span></span><br><span class="line">        <span class="keyword">if</span> (wp-&gt;config-&gt;pm != PM_STYLE_DYNAMIC) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="keyword">if</span> (idle &gt; wp-&gt;config-&gt;pm_max_spare_servers &amp;&amp; last_idle_child) &#123;</span><br><span class="line">            <span class="comment">//空闲worker太多了，杀掉</span></span><br><span class="line">            last_idle_child-&gt;idle_kill = <span class="number">1</span>;</span><br><span class="line">            fpm_pctl_kill(last_idle_child-&gt;pid, FPM_PCTL_QUIT);</span><br><span class="line">            wp-&gt;idle_spawn_rate = <span class="number">1</span>;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (idle &lt; wp-&gt;config-&gt;pm_min_spare_servers) &#123;</span><br><span class="line">            <span class="comment">//空闲worker太少了，如果总worker数未达到max数则fork</span></span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p><strong>(3)fpm_pctl_heartbeat():</strong></p>
+<p>这个事件是用于限制worker处理单个请求最大耗时的，php-fpm.conf中有一个<code>request_terminate_timeout</code>的配置项，如果worker处理一个请求的总时长超过了这个值那么master将会向此worker进程发送<code>kill -TERM</code>信号杀掉worker进程，此配置单位为秒，默认值为0表示关闭此机制，另外fpm打印的slow log也是在这里完成的。<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">fpm_pctl_check_request_timeout</span><span class="params">(struct timeval *now)</span></span></span><br><span class="line"><span class="function"></span>&#123;   </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">fpm_worker_pool_s</span> *<span class="title">wp</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (wp = fpm_worker_all_pools; wp; wp = wp-&gt;next) &#123;</span><br><span class="line">        <span class="keyword">int</span> terminate_timeout = wp-&gt;config-&gt;request_terminate_timeout;</span><br><span class="line">        <span class="keyword">int</span> slowlog_timeout = wp-&gt;config-&gt;request_slowlog_timeout;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> <span class="title">fpm_child_s</span> *<span class="title">child</span>;</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (terminate_timeout || slowlog_timeout) &#123; </span><br><span class="line">            <span class="keyword">for</span> (child = wp-&gt;children; child; child = child-&gt;next) &#123;</span><br><span class="line">                <span class="comment">//检查当前当前worker处理的请求是否超时</span></span><br><span class="line">                fpm_request_check_timed_out(child, now, terminate_timeout, slowlog_timeout);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>&emsp;&emsp;除了上面这几个事件外还有一个没有提到，那就是ondemand模式下master监听的新请求到达的事件，因为ondemand模式下fpm启动时是不会预创建worker的，有请求时才会生成子进程，所以请求到达时需要通知master进程，这个事件是在<code>fpm_children_create_initial()</code>时注册的，事件处理函数为<code>fpm_pctl_on_socket_accept()</code>，具体逻辑这里不再展开，比较容易理解。</p>
+<p>&emsp;&emsp;到目前为止已经把fpm的整个核心流程介绍完了。</p>
+</section>
+    <!-- Tags START -->
+    
+      <div class="tags">
+        <span>Tags:</span>
+        
+  <a href="/tags#PHP原理">
+    <span class="tag-code">PHP原理</span>
+  </a>
+
+      </div>
+    
+    <!-- Tags END -->
+    <!-- NAV START -->
+    
+  <div class="nav-container">
+    <!-- reverse left and right to put prev and next in a more logic postition -->
+    
+      <a class="nav-left" href="/2018/11/18/PHP-uniqid/">
+        <span class="nav-arrow">← </span>
+        
+          PHP生成唯一ID
+        
+      </a>
+    
+    
+  </div>
+
+    <!-- NAV END -->
+    <!-- 打赏 START -->
+    
+    <!-- 打赏 END -->
+    <!-- 二维码 START -->
+    
+      <div class="qrcode">
+        <canvas id="share-qrcode"></canvas>
+        <p class="notice">扫描二维码，分享此文章</p>
+      </div>
+    
+    <!-- 二维码 END -->
+    
+      <!-- No Comment -->
+    
+  </article>
+  <!-- Article END -->
+  <!-- Catalog START -->
+  
+  <!-- Catalog END -->
+</main>
+
+<script>
+  (function () {
+    var url = 'https://lihang1997.github.io/2018/12/18/PHP-FPM/';
+    var banner = ''
+    if (banner !== '' && banner !== 'undefined' && banner !== 'null') {
+      $('#article-banner').css({
+        'background-image': 'url(' + banner + ')'
+      })
+    } else {
+      $('#article-banner').geopattern(url)
+    }
+    $('.header').removeClass('fixed-header')
+
+     // error image
+    $(".markdown-content img").on('error', function() {
+      $(this).attr('src', 'http://file.muyutech.com/error-img.png')
+      $(this).css({
+        'cursor': 'default'
+      })
+    })
+
+    // zoom image
+    $(".markdown-content img").on('click', function() {
+      var src = $(this).attr('src')
+      if (src !== 'http://file.muyutech.com/error-img.png') {
+        var imageW = $(this).width()
+        var imageH = $(this).height()
+        
+        var zoom = ($(window).width() * 0.95 / imageW).toFixed(2)
+        zoom = zoom < 1 ? 1 : zoom
+        zoom = zoom > 2 ? 2 : zoom
+        var transY = (($(window).height() - imageH) / 2).toFixed(2)
+
+        $('body').append('<div class="image-view-wrap"><div class="image-view-inner"><img src="'+ src +'" /></div></div>')
+        $('.image-view-wrap').addClass('wrap-active')
+        $('.image-view-wrap img').css({
+          'width': `${imageW}`,
+          'transform': `translate3d(0, ${transY}px, 0) scale3d(${zoom}, ${zoom}, 1)`
+        })
+        $('html').css('overflow', 'hidden')
+
+        $('.image-view-wrap').on('click', function() {
+          $(this).remove()
+          $('html').attr('style', '')
+        })
+      }
+    })
+
+    // qrcode
+    var qr = new QRious({
+      element: document.getElementById('share-qrcode'),
+      value: document.location.href
+    });
+
+    // gitment
+    var gitmentConfig = "";
+    if (gitmentConfig !== 'undefined') {
+      var gitment = new Gitment({
+        id: "PHP-FPM概述",
+        owner: "",
+        repo: "",
+        oauth: {
+          client_id: "",
+          client_secret: ""
+        },
+        theme: {
+          render(state, instance) {
+            const container = document.createElement('div')
+            container.lang = "en-US"
+            container.className = 'gitment-container gitment-root-container'
+            container.appendChild(instance.renderHeader(state, instance))
+            container.appendChild(instance.renderEditor(state, instance))
+            container.appendChild(instance.renderComments(state, instance))
+            container.appendChild(instance.renderFooter(state, instance))
+            return container;
+          }
+        }
+      })
+      gitment.render(document.getElementById('comments'))
+    }
+  })();
+</script>
+
+<script>
+  var disqus_shortname = '';
+  
+  var disqus_url = 'https://lihang1997.github.io/2018/12/18/PHP-FPM/';
+  
+  (function(){
+    var dsq = document.createElement('script');
+    dsq.type = 'text/javascript';
+    dsq.async = true;
+    dsq.src = '//go.disqus.com/embed.js';
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+  })();
+</script>
+
+    <div class="scroll-top">
+  <span class="arrow-icon"></span>
+</div>
+    <footer class="app-footer">
+  <p class="copyright">
+    &copy; 2020 | 但愿所有人今晚都能睡的安稳.
+  </p>
+</footer>
+
+<script>
+  function async(u, c) {
+    var d = document, t = 'script',
+      o = d.createElement(t),
+      s = d.getElementsByTagName(t)[0];
+    o.src = u;
+    if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+    s.parentNode.insertBefore(o, s);
+  }
+</script>
+<script>
+  async("//cdn.bootcss.com/fastclick/1.0.6/fastclick.min.js", function(){
+    FastClick.attach(document.body);
+  })
+</script>
+
+<script>
+  var hasLine = 'true';
+  async("//cdn.bootcss.com/highlight.js/9.12.0/highlight.min.js", function(){
+    $('figure pre').each(function(i, block) {
+      var figure = $(this).parents('figure');
+      if (hasLine === 'false') {
+        figure.find('.gutter').hide();
+      }
+      var lang = figure.attr('class').split(' ')[1] || 'code';
+      var codeHtml = $(this).html();
+      var codeTag = document.createElement('code');
+      codeTag.className = lang;
+      codeTag.innerHTML = codeHtml;
+      $(this).attr('class', '').empty().html(codeTag);
+      figure.attr('data-lang', lang.toUpperCase());
+      hljs.highlightBlock(block);
+    });
+  })
+</script>
+<!-- Baidu Tongji -->
+
+<script src="/js/script.js"></script>
+
+  </body>
+</html>
